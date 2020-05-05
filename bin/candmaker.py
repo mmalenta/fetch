@@ -216,7 +216,7 @@ def cand2h5(cand_val):
     cand.dmt = normalise(cand.dmt)
     cand.dedispersed = normalise(cand.dedispersed)
 
-    fout = cand.save_h5(out_dir=args.fout)
+    fout = cand.save_h5(fnout=self._cand_h5)
     logging.info(fout)
     if args.plot:
         logging.info('Displaying the candidate')
