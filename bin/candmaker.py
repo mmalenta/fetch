@@ -105,7 +105,7 @@ class Candmaker:
         
         print(self._cand_h5)
 
-        fout = cand.save_h5(self._cand_h5)
+        fout = cand.save_h5(fnout=self._cand_h5)
         if self._verbose:
             print("Created file %s" % (self._cand_h5))
 
@@ -147,81 +147,6 @@ class Candmaker:
         if clip_range != None:
             data = np.clip(data, -1.0 * clip_range, clip_range) 
         return data
-
-
-def cand2h5(cand_val):
-    """
-    TODO: Add option to use cand.resize for reshaping FT and DMT
-    Generates h5 file of candidate with resized frequency-time and DM-time arrays
-    :param cand_val: List of candidate parameters (fil_name, snr, width, dm, label, tcand(s))
-    :type cand_val: Candidate
-    :return: None
-    """
-    fil_name, snr, width, dm, label, tcand, kill_mask_path, args = cand_val
-    if kill_mask_path == kill_mask_path:
-        kill_mask_file = pathlib.Path(kill_mask_path)
-        if kill_mask_file.is_file():
-            logging.info(f'Using mask {kill_mask_path}')
-            kill_chans = np.loadtxt(kill_mask_path, dtype=np.int)
-            filobj = SigprocFile(fil_name)
-            kill_mask = np.zeros(filobj.nchans, dtype=np.bool)
-            kill_mask[kill_chans]= True
-
-    else:
-        logging.debug('No Kill Mask')
-        kill_mask = None
-
-    cand = Candidate(fil_name, snr=snr, width=width, dm=dm, label=label, tcand=tcand, kill_mask=kill_mask)
-    cand.get_chunk()
-    cand.fp.close()
-    logging.info('Got Chunk')
-    cand.dmtime()
-    logging.info('Made DMT')
-    if args.opt_dm:
-        logging.info('Optimising DM')
-        logging.warning('This feature is experimental!')
-        cand.optimize_dm()
-    else:
-        cand.dm_opt = -1
-        cand.snr_opt = -1
-    cand.dedisperse()
-    logging.info('Made Dedispersed profile')
-
-    pulse_width = cand.width
-    if pulse_width == 1:
-        time_decimate_factor = 1
-    else:
-        time_decimate_factor = pulse_width // 2
-
-    # Frequency - Time reshaping
-    cand.decimate(key='ft', axis=0, pad=True, decimate_factor=time_decimate_factor, mode='median')
-    crop_start_sample_ft = cand.dedispersed.shape[0] // 2 - args.time_size // 2
-    cand.dedispersed = crop(cand.dedispersed, crop_start_sample_ft, args.time_size, 0)
-    logging.info(f'Decimated Time axis of FT to tsize: {cand.dedispersed.shape[0]}')
-
-    if cand.dedispersed.shape[1] % args.frequency_size == 0:
-        cand.decimate(key='ft', axis=1, pad=True, decimate_factor=cand.dedispersed.shape[1] // args.frequency_size,
-                      mode='median')
-        logging.info(f'Decimated Frequency axis of FT to fsize: {cand.dedispersed.shape[1]}')
-    else:
-        cand.resize(key='ft', size=args.frequency_size, axis=1, anti_aliasing=True)
-        logging.info(f'Resized Frequency axis of FT to fsize: {cand.dedispersed.shape[1]}')
-
-    # DM-time reshaping
-    cand.decimate(key='dmt', axis=1, pad=True, decimate_factor=time_decimate_factor, mode='median')
-    crop_start_sample_dmt = cand.dmt.shape[1] // 2 - args.time_size // 2
-    cand.dmt = crop(cand.dmt, crop_start_sample_dmt, args.time_size, 1)
-    logging.info(f'Decimated DM-Time to dmsize: {cand.dmt.shape[0]} and tsize: {cand.dmt.shape[1]}')
-
-    cand.dmt = normalise(cand.dmt)
-    cand.dedispersed = normalise(cand.dedispersed)
-
-    fout = cand.save_h5(fnout=self._cand_h5)
-    logging.info(fout)
-    if args.plot:
-        logging.info('Displaying the candidate')
-        plot_h5(fout, show=False, save=True, detrend=False)
-    return None
 
 def main():
 
